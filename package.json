@@ -1,0 +1,11 @@
+{
+  "name": "ask-sofi-spritesheets",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "node scripts/dev.mjs"
+  },
+  "devDependencies": {
+    "sass": "^1.105.1"
+  }
+}

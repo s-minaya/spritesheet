@@ -1,0 +1,64 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Sofi · Sprites</title>
+  <link rel="icon" href="data:,">
+  <link rel="stylesheet" href="playground.css">
+  <script type="module" src="playground.js"></script>
+</head>
+<body>
+  <header class="top">
+    <div class="brand">
+      <h1>Sofi · Sprites</h1>
+      <span class="live" id="live">desconectado</span>
+    </div>
+    <p class="summary" id="summary"></p>
+  </header>
+
+  <section class="controls" aria-label="Controles">
+    <button type="button" class="btn primary" id="play">Pausa</button>
+    <button type="button" class="btn" id="restart">Reiniciar</button>
+    <label class="ctl">Tamaño
+      <input type="range" id="size" min="64" max="512" step="8">
+      <output id="size-out" for="size"></output>
+    </label>
+    <div class="ctl" role="group" aria-label="Velocidad">Velocidad
+      <div class="seg">
+        <button type="button" data-speed="0.25">¼×</button>
+        <button type="button" data-speed="0.5">½×</button>
+        <button type="button" data-speed="1">1×</button>
+        <button type="button" data-speed="2">2×</button>
+      </div>
+    </div>
+    <div class="ctl" role="group" aria-label="Fondo">Fondo
+      <div class="seg">
+        <button type="button" data-bg-option="light">Claro</button>
+        <button type="button" data-bg-option="dark">Oscuro</button>
+        <button type="button" data-bg-option="checker">Cuadros</button>
+      </div>
+    </div>
+    <label class="ctl check"><input type="checkbox" id="pixel"> Pixelado</label>
+  </section>
+
+  <main class="grid" id="grid"></main>
+
+  <template id="card">
+    <article class="card">
+      <div class="stage"><div class="sprite"></div></div>
+      <div class="body">
+        <header class="meta">
+          <h2 class="name"></h2>
+          <span class="folder"></span>
+        </header>
+        <p class="facts"></p>
+        <div class="timeline" tabindex="0" role="slider" aria-label="Línea de tiempo" aria-valuemin="0" aria-valuemax="100"><span class="head"></span></div>
+        <span class="time"></span>
+        <div class="frames"></div>
+        <p class="note"></p>
+      </div>
+    </article>
+  </template>
+</body>
+</html>
