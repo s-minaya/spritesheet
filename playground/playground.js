@@ -155,7 +155,8 @@ async function addCard(entry, cls) {
     thumb.title = `Ir al fotograma ${i}`;
     thumb.append(img, label);
     const first = steps.find((s) => s.frame === i);
-    if (first) thumb.addEventListener('click', () => seek(first.start));
+    // Al centro del tramo: en el borde exacto el navegador puede redondear al fotograma anterior.
+    if (first) thumb.addEventListener('click', () => seek((first.start + first.end) / 2));
     $('.frames', card).append(thumb);
     return thumb;
   });

@@ -31,6 +31,8 @@ NNN-nombre/              una carpeta por animación, numeradas en orden (001, 00
 scss/_sprite.scss        mixin común sprite.animation(...)
 playground/              página de revisión (index.html, playground.js, playground.scss)
 scripts/dev.mjs          servidor del playground (compila el SCSS al vuelo)
+scripts/export.mjs       genera dist/sprites/, la carpeta para copiar al proyecto de destino
+dist/                    generada por npm run export; está en .gitignore
 ```
 
 No se guardan en el repo archivos derivados redundantes: ni CSS compilado, ni JSON con tiempos, ni GIF de vista previa. La fuente de verdad es el SCSS, y el playground sustituye a las vistas previas.
@@ -40,6 +42,7 @@ No se guardan en el repo archivos derivados redundantes: ni CSS compilado, ni JS
 ```sh
 npm install      # solo instala sass
 npm run dev      # playground en http://127.0.0.1:5757/
+npm run export   # genera dist/sprites/ con todo lo necesario para el otro proyecto
 ```
 
 El puerto 5173 lo usa otro proyecto del usuario. Si el 5757 está ocupado, el servidor prueba los siguientes y muestra en consola la URL que ha usado.
@@ -51,7 +54,8 @@ El puerto 5173 lo usa otro proyecto del usuario. Si el 5757 está ocupado, el se
 3. Procesa los fotogramas siguiendo el [pipeline](#pipeline-de-imagen).
 4. Escribe `nombre.webp` y `_nombre.scss`.
 5. Revísala en el playground (ver [Playground](#playground)).
-6. Informa al usuario con cifras: fotogramas, duración, KB de descarga y MB de memoria.
+6. **Ejecuta `npm run export`** para regenerar `dist/sprites/`. Esa carpeta es la que el usuario copia a su otro proyecto. Contiene `_sprite.scss`, el parcial y el `.webp` de cada animación, y un `_index.scss` que las importa todas con `@use 'sprites';`. El script comprueba que la carpeta compila sola. Si una animación necesita más archivos (por ejemplo JS en las animaciones complejas), amplía `scripts/export.mjs` para que también los copie.
+7. Informa al usuario con cifras (fotogramas, duración, KB de descarga y MB de memoria) e indícale la ruta de `dist/sprites/`.
 
 ## Pipeline de imagen
 
@@ -64,6 +68,55 @@ Son pixel art creados por la usuaria, pero modificados con IA, de 1254×1254 RGB
 - **Los fotogramas no son idénticos fuera de la parte que se mueve**: pelo, ropa y bordes cambian un poco de uno a otro. Si se animan tal cual, la silueta tiembla.
 
 Comprueba si cada animación nueva cumple estas características, porque puede cambiar.
+
+### Consistencia artística y fidelidad al pixel art
+
+Cada animación debe mantener un estilo visual coherente entre
+todos sus fotogramas.
+
+- **Referencia maestra:** identifica el fotograma de referencia
+  artística de cada animación (por defecto, el de reposo).
+  Úsalo para comparar proporciones, rasgos, contornos,
+  colores y nivel de detalle.
+
+- **Pixel art, no pixelado:** conserva el tamaño visual de los
+  píxeles, los contornos escalonados y las agrupaciones de
+  color de la referencia. No impongas una rejilla uniforme
+  si los originales tienen píxeles irregulares.
+
+- **Rostro:** presta especial atención a ojos, pupilas,
+  pestañas, cejas y boca. Sus proporciones y estilo deben
+  ser coherentes, respetando las expresiones intencionadas.
+
+- **Pelo:** mantiene la estructura de mechones, los
+  contornos y el sombreado de la referencia. Permite
+  movimientos intencionados sin introducir cambios
+  accidentales en el diseño.
+
+- **Resto del personaje:** comprueba ropa, accesorios,
+  manos y objetos compartidos entre fotogramas.
+
+- **Correcciones automáticas:** limita las correcciones
+  automáticas a cambios verificables que no alteren
+  el diseño. Sigue el pipeline existente.
+
+- **Prohibido:** aplicar filtros globales de pixelado,
+  posterización agresiva, suavizado o reconstrucción
+  artística sin comprobar el resultado visualmente.
+
+- **Correcciones artísticas:** si los ojos, el pelo, la boca
+  o las proporciones requieren redibujarse, informa al
+  usuario. No improvises cambios anatómicos ni sustituyas
+  los originales.
+
+- **Validación:** compara los fotogramas con la referencia
+  maestra, a tamaño de visualización y con zoom usando
+  nearest-neighbor. Revisa especialmente rostro, pelo,
+  contornos y transiciones.
+
+- **Resultado:** ninguna corrección debe introducir
+  saltos visuales, pérdida de expresividad ni desviaciones
+  perceptibles del estilo original.
 
 ### Pasos
 
@@ -154,6 +207,14 @@ Cada parcial sigue este patrón:
   - el resumen de KB y MB.
 - Si una animación necesita elementos de la página (por ejemplo, una interacción con la cuarta pared), amplía el playground para reproducirlos. Hazlo de forma **genérica**, por ejemplo con una demo propia dentro de la carpeta de la animación que el playground cargue. No metas casos especiales en `playground.js`.
 - Para capturas automáticas: `--screenshot` de Chrome o Edge en modo headless se queda colgado por la conexión SSE de la recarga en vivo. Usa `puppeteer-core` con el navegador instalado. No cierres procesos del navegador de forma masiva, porque puedes cerrar el navegador del usuario.
+- Antes de aprobar una animación nueva, compara sus
+  fotogramas con la referencia artística en una vista
+  conjunta. Señala posibles desviaciones de estilo y
+  distingue las que puedan corregirse automáticamente
+  de las que requieran intervención artística.
+
+- No des por validada una corrección solo porque mejoren
+  sus métricas: comprueba siempre el resultado visual.
 
 ## Animaciones complejas (cuarta pared)
 
