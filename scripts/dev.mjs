@@ -35,9 +35,12 @@ function animations() {
     .sort();
   for (const dir of dirs) {
     const abs = path.join(ROOT, dir);
+    // Demo propia de la carpeta (animaciones que necesitan elementos de la página): va con su primer parcial.
+    let demo = fs.existsSync(path.join(abs, 'demo.js')) ? `/${dir}/demo.js` : null;
     for (const file of fs.readdirSync(abs).filter((f) => /^_.+\.scss$/.test(f)).sort()) {
       const name = file.slice(1, -'.scss'.length);
-      const entry = { id: dir, name, css: `/${dir}/${name}.css`, classes: [], assets: [], error: null };
+      const entry = { id: dir, name, css: `/${dir}/${name}.css`, classes: [], assets: [], demo, error: null };
+      demo = null;
       try {
         const css = compile(abs, name);
         // Clases de primer nivel que declaran una animación.
@@ -114,6 +117,8 @@ function listen(port) {
     if (err.code === 'EADDRINUSE' && port < PORT + 10) listen(port + 1);
     else throw err;
   });
-  server.listen(port, '127.0.0.1', () => console.log(`Playground: http://127.0.0.1:${port}/`));
+  server.listen(port, '127.0.0.1');
 }
+// Un solo aviso con el puerto que se ha usado (si el primero estaba ocupado, no se anuncia).
+server.once('listening', () => console.log(`Playground: http://127.0.0.1:${server.address().port}/`));
 listen(PORT);

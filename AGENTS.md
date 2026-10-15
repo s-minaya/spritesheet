@@ -6,10 +6,12 @@ Guía para cualquier agente (o persona) que trabaje en este repositorio. Léela 
 
 Spritesheets animados de **Sofi**, el personaje de *Ask Sofi*. Se usan en una página web que mostrará **muchas animaciones a la vez**, así que cada una tiene que ser lo más ligera posible sin perder calidad visual.
 
-Cada animación se entrega como:
+Cada animación se compone de:
 
 - una **tira horizontal WebP** que solo contiene fotogramas únicos, y
 - un **parcial SCSS** con la temporización.
+
+La usuaria incorpora las animaciones a su web **de una en una**. Cada animación nueva se le entrega como **un zip propio, listo para pegar** (`dist/NNN-nombre.zip`), nunca como una carpeta con todas juntas. Ver [Entrega](#entrega).
 
 Un **playground** local muestra todas las animaciones para revisarlas.
 
@@ -28,10 +30,12 @@ NNN-nombre/              una carpeta por animación, numeradas en orden (001, 00
   img/                   fotogramas originales del usuario. No se modifican nunca.
   nombre.webp            tira con los fotogramas únicos
   _nombre.scss           la animación; define la clase .nombre
+  nombre.js, nombre.d.ts solo en las complejas: el comportamiento, sin dependencias, y sus tipos
+  demo.js                opcional: demo propia para el playground (no se exporta)
 scss/_sprite.scss        mixin común sprite.animation(...)
 playground/              página de revisión (index.html, playground.js, playground.scss)
 scripts/dev.mjs          servidor del playground (compila el SCSS al vuelo)
-scripts/export.mjs       genera dist/sprites/, la carpeta para copiar al proyecto de destino
+scripts/export.mjs       genera un zip por animación en dist/, listo para pegar en el proyecto de destino
 dist/                    generada por npm run export; está en .gitignore
 ```
 
@@ -42,7 +46,7 @@ No se guardan en el repo archivos derivados redundantes: ni CSS compilado, ni JS
 ```sh
 npm install      # solo instala sass
 npm run dev      # playground en http://127.0.0.1:5757/
-npm run export   # genera dist/sprites/ con todo lo necesario para el otro proyecto
+npm run export   # genera dist/NNN-nombre.zip: un zip por animación, listo para pegar en la web
 ```
 
 El puerto 5173 lo usa otro proyecto del usuario. Si el 5757 está ocupado, el servidor prueba los siguientes y muestra en consola la URL que ha usado.
@@ -54,8 +58,8 @@ El puerto 5173 lo usa otro proyecto del usuario. Si el 5757 está ocupado, el se
 3. Procesa los fotogramas siguiendo el [pipeline](#pipeline-de-imagen).
 4. Escribe `nombre.webp` y `_nombre.scss`.
 5. Revísala en el playground (ver [Playground](#playground)).
-6. **Ejecuta `npm run export`** para regenerar `dist/sprites/`. Esa carpeta es la que el usuario copia a su otro proyecto. Contiene `_sprite.scss`, el parcial y el `.webp` de cada animación, y un `_index.scss` que las importa todas con `@use 'sprites';`. El script comprueba que la carpeta compila sola. Si una animación necesita más archivos (por ejemplo JS en las animaciones complejas), amplía `scripts/export.mjs` para que también los copie.
-7. Informa al usuario con cifras (fotogramas, duración, KB de descarga y MB de memoria) e indícale la ruta de `dist/sprites/`.
+6. **Ejecuta `npm run export`**. Genera `dist/NNN-nombre.zip`, el paquete de la animación (ver [Entrega](#entrega)).
+7. Informa al usuario con cifras (fotogramas, duración, KB de descarga y MB de memoria). Indícale la ruta del zip y cómo incorporarlo.
 
 ## Pipeline de imagen
 
@@ -171,8 +175,8 @@ Cada parcial sigue este patrón:
   - la animación `step-end` sobre `background-position-x`;
   - `animation: none` cuando el usuario tiene activado `prefers-reduced-motion`;
   - la propiedad `--sprite-frames`, que usa el playground.
-- Si cambias `scss/_sprite.scss`, comprueba que las animaciones existentes siguen compilando **exactamente al mismo CSS**, salvo que el cambio sea intencionado.
-- En el proyecto de destino basta con copiar `_sprite.scss`, el parcial y el `.webp` a la misma carpeta. `@use 'sprite'` se resuelve al estar en la misma carpeta. Vite reescribe solo la ruta del `url()`; con otro bundler puede que haya que ajustarla.
+- Si cambias `scss/_sprite.scss`, comprueba que las animaciones existentes siguen compilando **exactamente al mismo CSS**, salvo que el cambio sea intencionado. Cada zip lleva la versión actual y, al pegarlo, sustituye la que ya hay en la web, así que tiene que seguir sirviendo a todas las animaciones anteriores.
+- Para sincronizar otras animaciones con la del sprite (giros, efectos en `::before`/`::after`), usa `sprite.duration($timeline)`. Si después del mixin declaras otro `animation:` con más animaciones, ponlo dentro de `@media (prefers-reduced-motion: no-preference)`: Sass lo emite detrás del `animation: none` del mixin y lo anularía. Ejemplo: `003-rolling`.
 
 ### Temporización
 
@@ -199,13 +203,14 @@ Cada parcial sigue este patrón:
 - `npm run dev` y abre la URL que muestra la consola.
 - Detecta solo cada `NNN-*/_*.scss`. Cada clase de primer nivel que declare `animation` aparece como una tarjeta. Si hay un error de compilación, sale como tarjeta de error.
 - El servidor compila `x.css` a partir de `_x.scss` cuando se pide, así que no hay CSS compilado en disco. La página se recarga al guardar cualquier archivo.
-- El playground controla la animación CSS real con la Web Animations API (`getAnimations()`). Desde ahí puedes pausar, cambiar la velocidad, arrastrar la línea de tiempo y ver las miniaturas con lo que dura cada fotograma.
+- El playground controla la animación CSS real con la Web Animations API (`getAnimations()`). Desde ahí puedes pausar, cambiar la velocidad, arrastrar la línea de tiempo y ver las miniaturas con lo que dura cada fotograma. Controla a la vez todas las animaciones de la pieza, también las de `::before`/`::after` (`getAnimations({ subtree: true })`), y el resumen de memoria suma todas las imágenes que declara el SCSS.
 - **Toda animación debe verse y funcionar en el playground antes de darla por terminada.** Comprueba:
   - fondos claro, oscuro y a cuadros;
   - varios tamaños;
   - que no hay errores en la consola;
   - el resumen de KB y MB.
 - Si una animación necesita elementos de la página (por ejemplo, una interacción con la cuarta pared), amplía el playground para reproducirlos. Hazlo de forma **genérica**, por ejemplo con una demo propia dentro de la carpeta de la animación que el playground cargue. No metas casos especiales en `playground.js`.
+  - Ya existe: si la carpeta tiene `demo.js`, el playground lo monta en una tarjeta propia a todo el ancho. Exporta por defecto `mount({ stage, body, entry })`; `stage` recibe el fondo y `--size` del playground (con la clase `sprite`, también el pixelado) y `body` es para sus controles. Puede devolver `{ setRate, pause, resume, restart }` para seguir los controles de arriba. Ejemplo: `006-poking/demo.js`.
 - Para capturas automáticas: `--screenshot` de Chrome o Edge en modo headless se queda colgado por la conexión SSE de la recarga en vivo. Usa `puppeteer-core` con el navegador instalado. No cierres procesos del navegador de forma masiva, porque puedes cerrar el navegador del usuario.
 - Antes de aprobar una animación nueva, compara sus
   fotogramas con la referencia artística en una vista
@@ -215,6 +220,19 @@ Cada parcial sigue este patrón:
 
 - No des por validada una corrección solo porque mejoren
   sus métricas: comprueba siempre el resultado visual.
+
+## Entrega
+
+La usuaria incorpora cada animación por separado. `npm run export` genera en `dist/` un zip por animación, `NNN-nombre.zip`, y ese zip es lo que se le entrega:
+
+- Contiene una carpeta `sprites/` con `_sprite.scss` (el mixin común), el parcial y las imágenes que declara su SCSS. No lleva nada de otras animaciones ni un `_index.scss` que las importe todas.
+- Se pega tal cual sobre la carpeta `sprites/` del proyecto de destino (en la web de Ask Sofi, `src/styles/sprites/`). Solo reemplaza `_sprite.scss` y no toca las animaciones ya incorporadas.
+- No prepares carpetas ni paquetes con varias animaciones salvo que la usuaria lo pida.
+- Todas las animaciones comparten esa carpeta, así que los archivos de cada una empiezan por su nombre (`rolling.webp`, `rolling-fx.webp`). El script lo exige y comprueba que cada paquete compila solo.
+- En el destino, cada componente importa su parcial con ruta relativa: `@use '../../styles/sprites/rolling';`. Vite solo reescribe la ruta del `url()` si el parcial se importa así; si lo encuentra por `loadPaths`, deja la URL tal cual y la imagen no carga (comprobado con Vite 8). Con CSS Modules, la clase se usa como `styles.rolling`. Con otro bundler puede que haya que ajustar la ruta.
+- Si una animación necesita más archivos (por ejemplo JS en las animaciones complejas), amplía `scripts/export.mjs` para que entren en su zip.
+  - El JS con el prefijo del parcial (`nombre.js`, `nombre-*.js`) y sus tipos (`nombre.d.ts`) ya entran solos, y se comprueba que el JS se analiza; `demo.js` no entra. La web es TypeScript estricto sin `allowJs`: todo JS que se entregue necesita su `.d.ts`.
+  - Con CSS Modules solo se renombran las clases: los elementos que cree el JS se marcan con atributos (`data-*`), no con clases.
 
 ## Animaciones complejas (cuarta pared)
 
@@ -233,4 +251,4 @@ Habrá animaciones en las que Sofi interactúa con elementos de la página. Para
 ## Comunicación
 
 - El usuario escribe en español. Responde en español y escribe los comentarios del código en español, como el código existente.
-- Cuando entregues una animación, resume qué has hecho y cualquier decisión que el usuario deba conocer, con cifras: KB, MB, fotogramas y duración.
+- Cuando entregues una animación, resume qué has hecho y cualquier decisión que el usuario deba conocer, con cifras: KB, MB, fotogramas y duración, y la ruta de su zip.

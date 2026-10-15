@@ -221,6 +221,11 @@ body {
     font-size: 12px;
     color: #d0435b;
   }
+
+  // Las demos montan su propia escena: ocupan toda la fila.
+  &.demo {
+    grid-column: 1 / -1;
+  }
 }
 
 .stage {

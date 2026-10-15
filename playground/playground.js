@@ -27,6 +27,7 @@ const state = {
   paused: store.get('paused', false),
 };
 const cards = [];
+const demos = [];
 
 const number = (n, digits) => n.toLocaleString('es', { minimumFractionDigits: digits, maximumFractionDigits: digits });
 const kb = (bytes) => `${number(bytes / 1024, 1)} KB`;
@@ -49,16 +50,26 @@ function render() {
   $('#play').textContent = state.paused ? 'Reproducir' : 'Pausa';
   for (const b of document.querySelectorAll('[data-speed]')) b.setAttribute('aria-pressed', Number(b.dataset.speed) === state.speed);
   for (const b of document.querySelectorAll('[data-bg-option]')) b.setAttribute('aria-pressed', b.dataset.bgOption === state.bg);
-  for (const { anim } of cards) {
-    anim.playbackRate = state.speed;
-    if (state.paused) anim.pause();
-    else anim.play();
+  for (const { all } of cards) {
+    for (const anim of all) {
+      anim.playbackRate = state.speed;
+      if (state.paused) anim.pause();
+      else anim.play();
+    }
+  }
+  for (const demo of demos) {
+    demo.setRate?.(state.speed);
+    if (state.paused) demo.pause?.();
+    else demo.resume?.();
   }
 }
 
 async function imageSize(cssUrl) {
   const src = /url\(["']?(.*?)["']?\)/.exec(cssUrl)?.[1];
-  if (!src) return null;
+  return src ? decodedSize(src) : null;
+}
+
+async function decodedSize(src) {
   const img = new Image();
   img.src = src;
   try {
@@ -82,6 +93,8 @@ async function addCard(entry, cls) {
   const image = await imageSize(style.backgroundImage);
   const bytes = entry.assets.reduce((sum, a) => sum + (a.bytes ?? 0), 0);
   const anim = sprite.getAnimations()[0];
+  // Las demás animaciones de la pieza (giros, efectos en ::before/::after…) se controlan junto a la principal.
+  const all = sprite.getAnimations({ subtree: true });
   const duration = anim ? anim.effect.getComputedTiming().duration : 0;
 
   $('.facts', card).textContent = [
@@ -95,7 +108,7 @@ async function addCard(entry, cls) {
     $('.note', card).textContent = 'Sin animación: el sistema tiene activado «reducir movimiento».';
     $('.timeline', card).remove();
     $('.time', card).remove();
-    return { image, bytes };
+    return;
   }
 
   // Tramos de la línea de tiempo a partir de los @keyframes reales.
@@ -117,7 +130,8 @@ async function addCard(entry, cls) {
 
   const seek = (progress) => {
     if (!state.paused) setState({ paused: true });
-    anim.currentTime = Math.min(Math.max(progress, 0), 0.9999) * duration;
+    const time = Math.min(Math.max(progress, 0), 0.9999) * duration;
+    for (const a of all) a.currentTime = time;
   };
   const scrub = (e) => {
     const r = bar.getBoundingClientRect();
@@ -161,8 +175,34 @@ async function addCard(entry, cls) {
     return thumb;
   });
 
-  cards.push({ anim, duration, steps, thumbs, bar, head: $('.head', bar), time: $('.time', card), current: -1 });
-  return { image, bytes };
+  cards.push({ anim, all, duration, steps, thumbs, bar, head: $('.head', bar), time: $('.time', card), current: -1 });
+}
+
+// Demo propia de una animación que necesita elementos de la página (NNN-*/demo.js). El módulo exporta por defecto
+// mount({ stage, body, entry }) y puede devolver { setRate, pause, resume, restart } para seguir los controles de arriba.
+async function addDemo(entry) {
+  const card = document.createElement('article');
+  card.className = 'card demo';
+  card.innerHTML = '<div class="stage"></div><div class="body"><header class="meta"><h2 class="name"></h2><span class="folder"></span></header><p class="facts"></p></div>';
+  $('.name', card).textContent = entry.name;
+  $('.folder', card).textContent = `${entry.id} · demo`;
+  grid.append(card);
+  const sizes = await Promise.all(entry.assets.map((a) => decodedSize(a.url)));
+  $('.facts', card).textContent = [
+    `${entry.assets.length} ${entry.assets.length === 1 ? 'imagen' : 'imágenes'}`,
+    kb(entry.assets.reduce((sum, a) => sum + (a.bytes ?? 0), 0)),
+    `${mb(sizes.reduce((sum, i) => sum + (i ? i.width * i.height * 4 : 0), 0))} en memoria`,
+  ].join(' · ');
+  try {
+    const { default: mount } = await import(entry.demo);
+    const demo = await mount({ stage: $('.stage', card), body: $('.body', card), entry });
+    if (demo) demos.push(demo);
+  } catch (err) {
+    card.classList.add('error');
+    const pre = document.createElement('pre');
+    pre.textContent = `${entry.demo}\n${err.stack ?? err}`;
+    card.append(pre);
+  }
 }
 
 function addError(entry) {
@@ -207,7 +247,6 @@ async function load() {
     document.head.append(link);
   })));
 
-  const images = new Map();
   let shown = 0;
   for (const entry of list) {
     if (entry.error) {
@@ -215,13 +254,18 @@ async function load() {
       continue;
     }
     for (const cls of entry.classes) {
-      const { image } = await addCard(entry, cls);
+      await addCard(entry, cls);
       shown++;
-      if (image) images.set(image.src, image);
+    }
+    if (entry.demo) {
+      await addDemo(entry);
+      if (!entry.classes.length) shown++;
     }
   }
   const download = new Map(list.flatMap((e) => e.assets.map((a) => [a.url, a.bytes ?? 0])));
-  const memory = [...images.values()].reduce((sum, i) => sum + i.width * i.height * 4, 0);
+  // Todas las imágenes (tiras y efectos), decodificadas: ancho × alto × 4 bytes.
+  const sizes = await Promise.all([...download.keys()].map(decodedSize));
+  const memory = sizes.reduce((sum, i) => sum + (i ? i.width * i.height * 4 : 0), 0);
   $('#summary').textContent = `${shown} animaci${shown === 1 ? 'ón' : 'ones'} · ${kb([...download.values()].reduce((a, b) => a + b, 0))} de descarga · ${mb(memory)} en memoria`;
 
   render();
@@ -229,7 +273,10 @@ async function load() {
 }
 
 $('#play').addEventListener('click', () => setState({ paused: !state.paused }));
-$('#restart').addEventListener('click', () => cards.forEach((c) => (c.anim.currentTime = 0)));
+$('#restart').addEventListener('click', () => {
+  cards.forEach((c) => c.all.forEach((a) => (a.currentTime = 0)));
+  demos.forEach((d) => d.restart?.());
+});
 $('#size').addEventListener('input', (e) => setState({ size: Number(e.target.value) }));
 $('#pixel').addEventListener('change', (e) => setState({ pixel: e.target.checked }));
 for (const b of document.querySelectorAll('[data-speed]')) b.addEventListener('click', () => setState({ speed: Number(b.dataset.speed) }));
